@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const Chat = require("../models/Chat");
 const { uploadMedia, deleteMedia } = require("../utils/mediaStorage");
@@ -14,6 +15,9 @@ const sendMessage = async (req, res) => {
     if (!chatId || !content?.trim()) return res.status(400).json({ message: "لازم تحدد المحادثة ومحتوى الرسالة" });
     const chat = await getChatIfMember(chatId, req.user._id);
     if (!chat) return res.status(403).json({ message: "مش عضو في المحادثة دي" });
+    if (replyTo && (!mongoose.isValidObjectId(replyTo) || !(await Message.exists({ _id: replyTo, chat: chatId })))) {
+      return res.status(400).json({ message: "الرسالة المشار إليها غير موجودة في هذه المحادثة" });
+    }
 
     let message = await Message.create({
       chat: chatId, sender: req.user._id, type: "text", content: content.trim(),
@@ -36,6 +40,9 @@ const sendMediaMessage = async (req, res) => {
     if (!chatId || !req.file) return res.status(400).json({ message: "لازم ترفع ملف وتحدد المحادثة" });
     const chat = await getChatIfMember(chatId, req.user._id);
     if (!chat) return res.status(403).json({ message: "مش عضو في المحادثة دي" });
+    if (replyTo && (!mongoose.isValidObjectId(replyTo) || !(await Message.exists({ _id: replyTo, chat: chatId })))) {
+      return res.status(400).json({ message: "الرسالة المشار إليها غير موجودة في هذه المحادثة" });
+    }
     if (!["audio", "image", "video"].includes(type)) return res.status(400).json({ message: "نوع الوسائط غير مدعوم" });
     const expectedPrefix = type === "audio" ? "audio/" : `${type}/`;
     if (!req.file.mimetype.startsWith(expectedPrefix)) return res.status(400).json({ message: "نوع الملف لا يطابق نوع الوسائط المحدد" });
@@ -92,6 +99,8 @@ const deleteMessage = async (req, res) => {
   try {
     const message = await Message.findById(req.params.id);
     if (!message) return res.status(404).json({ message: "الرسالة غير موجودة" });
+    const chat = await getChatIfMember(message.chat, req.user._id);
+    if (!chat) return res.status(403).json({ message: "مش عضو في المحادثة دي" });
     if (message.sender.toString() !== req.user._id.toString()) return res.status(403).json({ message: "مينفعش تمسح رسالة مش بتاعتك" });
     message.isDeleted = true;
     message.content = "";
