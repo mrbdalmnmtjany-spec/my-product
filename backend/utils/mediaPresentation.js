@@ -5,11 +5,13 @@ const toPlain = (value) => {
   return typeof value.toObject === "function" ? value.toObject() : { ...value };
 };
 
+const isPopulatedDocument = (value) => Boolean(value && typeof value === "object" && value._id && !value._bsontype);
+
 const isSupabaseKey = (key) =>
   typeof key === "string" && /^(avatars|posts|stories|messages(?:-[a-z]+)?)\//.test(key);
 
 async function presentUser(value) {
-  if (!value || typeof value !== "object") return value;
+  if (!isPopulatedDocument(value)) return value;
   const user = toPlain(value);
   if (user.avatarPublicId && !user.avatar && isSupabaseKey(user.avatarPublicId)) {
     user.avatar = await getMediaUrl(user.avatarPublicId);
@@ -28,11 +30,11 @@ async function presentPost(value) {
     post.mediaUrl = await getMediaUrl(post.mediaKey);
   }
   delete post.mediaKey;
-  if (post.author && typeof post.author === "object") post.author = await presentUser(post.author);
+  if (isPopulatedDocument(post.author)) post.author = await presentUser(post.author);
   if (Array.isArray(post.comments)) {
     post.comments = await Promise.all(post.comments.map(async (comment) => {
       const item = { ...comment };
-      if (item.user && typeof item.user === "object") item.user = await presentUser(item.user);
+      if (isPopulatedDocument(item.user)) item.user = await presentUser(item.user);
       return item;
     }));
   }
@@ -46,10 +48,10 @@ async function presentStory(value) {
     story.mediaUrl = await getMediaUrl(story.mediaKey);
   }
   delete story.mediaKey;
-  if (story.user && typeof story.user === "object") story.user = await presentUser(story.user);
+  if (isPopulatedDocument(story.user)) story.user = await presentUser(story.user);
   if (Array.isArray(story.viewers)) {
     story.viewers = await Promise.all(story.viewers.map((viewer) =>
-      viewer && typeof viewer === "object" ? presentUser(viewer) : viewer
+      isPopulatedDocument(viewer) ? presentUser(viewer) : viewer
     ));
   }
   return story;
@@ -60,12 +62,12 @@ async function presentChat(value) {
   const chat = toPlain(value);
   if (Array.isArray(chat.members)) {
     chat.members = await Promise.all(chat.members.map((member) =>
-      member && typeof member === "object" ? presentUser(member) : member
+      isPopulatedDocument(member) ? presentUser(member) : member
     ));
   }
   if (Array.isArray(chat.groupAdmins)) {
     chat.groupAdmins = await Promise.all(chat.groupAdmins.map((admin) =>
-      admin && typeof admin === "object" ? presentUser(admin) : admin
+      isPopulatedDocument(admin) ? presentUser(admin) : admin
     ));
   }
   if (chat.lastMessage && typeof chat.lastMessage === "object") {
@@ -81,10 +83,10 @@ async function presentMessage(value, depth = 0) {
     message.mediaUrl = await getMediaUrl(message.mediaKey);
   }
   delete message.mediaKey;
-  if (message.sender && typeof message.sender === "object") {
+  if (isPopulatedDocument(message.sender)) {
     message.sender = await presentUser(message.sender);
   }
-  if (depth < 1 && message.replyTo && typeof message.replyTo === "object") {
+  if (depth < 1 && isPopulatedDocument(message.replyTo)) {
     message.replyTo = await presentMessage(message.replyTo, depth + 1);
   }
   return message;
