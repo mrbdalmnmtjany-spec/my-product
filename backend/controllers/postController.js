@@ -2,8 +2,11 @@ const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const User = require('../models/User');
 const { uploadMedia, deleteMedia } = require('../utils/mediaStorage');
+const { presentPost, isSupabaseKey } = require('../utils/mediaPresentation');
 
-const populatePost = (query) => query.populate('author', 'name avatar bio').populate('comments.user', 'name avatar');
+const populatePost = (query) => query
+  .populate('author', 'name avatar avatarPublicId bio')
+  .populate('comments.user', 'name avatar avatarPublicId');
 
 exports.createPost = async (req, res) => {
   try {
@@ -14,11 +17,14 @@ exports.createPost = async (req, res) => {
       if (!req.file.mimetype.startsWith('image/') && !req.file.mimetype.startsWith('video/')) return res.status(400).json({ message: 'المنشورات تدعم الصور والفيديو فقط.' });
       mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
       const uploaded = await uploadMedia(req.file.buffer, { folder: 'posts', mimetype: req.file.mimetype, originalname: req.file.originalname });
-      mediaUrl = uploaded.secure_url; mediaKey = uploaded.key;
+      mediaKey = uploaded.key;
     }
     const post = await Post.create({ author: req.user._id, text, mediaUrl, mediaKey, mediaType });
-    res.status(201).json(await populatePost(Post.findById(post._id)));
-  } catch (error) { res.status(error.status || 500).json({ message: error.status === 503 ? error.message : 'تعذر نشر المنشور.' }); }
+    const populated = await populatePost(Post.findById(post._id));
+    res.status(201).json(await presentPost(populated));
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.status === 503 ? error.message : 'تعذر نشر المنشور.' });
+  }
 };
 
 exports.getFeed = async (req, res) => {
@@ -26,7 +32,11 @@ exports.getFeed = async (req, res) => {
     const me = await User.findById(req.user._id).select('following');
     const ids = [...new Set([req.user._id.toString(), ...(me?.following || []).map(String)])];
     const posts = await populatePost(Post.find({ author: { $in: ids } }).sort({ createdAt: -1 }).limit(50));
-    res.json(posts.map((post) => ({ ...post.toObject(), liked: post.likes.some((id) => id.toString() === req.user._id.toString()) })));
+    const result = await Promise.all(posts.map(async (post) => ({
+      ...await presentPost(post),
+      liked: post.likes.some((id) => id.toString() === req.user._id.toString()),
+    })));
+    res.json(result);
   } catch (error) { res.status(500).json({ message: 'تعذر تحميل المنشورات.' }); }
 };
 
@@ -34,7 +44,7 @@ exports.getUserPosts = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.userId)) return res.status(400).json({ message: 'معرّف غير صالح' });
     const posts = await populatePost(Post.find({ author: req.params.userId }).sort({ createdAt: -1 }).limit(50));
-    res.json(posts);
+    res.json(await Promise.all(posts.map(presentPost)));
   } catch (error) { res.status(500).json({ message: 'تعذر تحميل منشورات المستخدم.' }); }
 };
 
@@ -55,8 +65,10 @@ exports.addComment = async (req, res) => {
   if (!post) return res.status(404).json({ message: 'المنشور غير موجود' });
   post.comments.push({ user: req.user._id, text });
   await post.save();
-  await post.populate('comments.user', 'name avatar');
-  res.status(201).json(post.comments[post.comments.length - 1]);
+  await post.populate('comments.user', 'name avatar avatarPublicId');
+  const comment = post.comments[post.comments.length - 1].toObject();
+  comment.user = await require('../utils/mediaPresentation').presentUser(comment.user);
+  res.status(201).json(comment);
 };
 
 exports.deletePost = async (req, res) => {
@@ -65,6 +77,6 @@ exports.deletePost = async (req, res) => {
   if (!post) return res.status(404).json({ message: 'المنشور غير موجود' });
   if (post.author.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'يمكن لصاحب المنشور حذفه فقط.' });
   await post.deleteOne();
-  if (post.mediaKey) deleteMedia(post.mediaKey).catch((e) => console.error('Media cleanup failed:', e.message));
+  if (post.mediaKey && isSupabaseKey(post.mediaKey)) deleteMedia(post.mediaKey).catch((e) => console.error('Media cleanup failed:', e.message));
   res.json({ deleted: true });
 };
