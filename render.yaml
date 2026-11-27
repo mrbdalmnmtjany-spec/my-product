@@ -7,7 +7,7 @@ services:
     buildCommand: >-
       npm ci --prefix frontend --include=dev --no-audit --no-fund &&
       npm run build --prefix frontend &&
-      npm ci --prefix backend --omit=dev --no-audit --no-fund
+      npm install --prefix backend --omit=dev --no-audit --no-fund
     startCommand: npm start --prefix backend
     healthCheckPath: /api/health
     envVars:
