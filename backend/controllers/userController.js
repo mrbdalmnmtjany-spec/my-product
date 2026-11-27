@@ -1,19 +1,15 @@
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const { uploadMedia, deleteMedia } = require("../utils/mediaStorage");
+const { presentUser, isSupabaseKey } = require("../utils/mediaPresentation");
 const { escapeRegex } = require("../utils/chatAccess");
 
-// @desc    بحث عن مستخدمين بالاسم أو الإيميل
-// @route   GET /api/users/search?q=...
 const searchUsers = async (req, res) => {
   try {
     const { q } = req.query;
     if (!q) return res.json([]);
-
-    // بنهرب الحروف الخاصة عشان مدخل المستخدم ميتحولش لـ regex خطير
     const safeQuery = escapeRegex(q.trim());
     if (!safeQuery) return res.json([]);
-
     const me = await User.findById(req.user._id).select("following");
     const users = await User.find({
       _id: { $ne: req.user._id },
@@ -21,34 +17,25 @@ const searchUsers = async (req, res) => {
         { name: { $regex: safeQuery, $options: "i" } },
         { email: { $regex: safeQuery, $options: "i" } },
       ],
-    })
-      .select("name avatar bio")
-      .limit(20);
+    }).select("name avatar avatarPublicId bio").limit(20);
 
-    res.json(users.map((person) => ({
-      ...person.toObject(),
+    const result = await Promise.all(users.map(async (person) => ({
+      ...await presentUser(person),
       isFollowing: (me?.following || []).some((id) => id.toString() === person._id.toString()),
     })));
+    res.json(result);
   } catch (error) {
-    res.status(500).json({ message: "حصل خطأ في السيرفر", error: error.message });
+    res.status(500).json({ message: "حصل خطأ في السيرفر" });
   }
 };
 
-// @desc    إضافة مستخدم لجهات الاتصال
-// @route   PUT /api/users/contacts/:userId
 const addContact = async (req, res) => {
   try {
     const { userId } = req.params;
-    if (!mongoose.isValidObjectId(userId)) {
-      return res.status(400).json({ message: "مستخدم غير صالح" });
-    }
-    if (userId === req.user._id.toString()) {
-      return res.status(400).json({ message: "مينفعش تضيف نفسك" });
-    }
-
+    if (!mongoose.isValidObjectId(userId)) return res.status(400).json({ message: "مستخدم غير صالح" });
+    if (userId === req.user._id.toString()) return res.status(400).json({ message: "مينفعش تضيف نفسك" });
     const target = await User.findById(userId);
     if (!target) return res.status(404).json({ message: "المستخدم غير موجود" });
-
     const me = await User.findById(req.user._id);
     if (!me.contacts.includes(userId)) {
       me.contacts.push(userId);
@@ -56,51 +43,42 @@ const addContact = async (req, res) => {
     }
     res.json({ message: "تمت الإضافة لجهات الاتصال" });
   } catch (error) {
-    res.status(500).json({ message: "حصل خطأ في السيرفر", error: error.message });
+    res.status(500).json({ message: "حصل خطأ في السيرفر" });
   }
 };
 
-// @desc    تحديث بيانات البروفايل (الاسم/البايو/الصورة)
-// @route   PUT /api/users/profile
 const updateProfile = async (req, res) => {
   try {
     const { name, bio } = req.body;
     const user = await User.findById(req.user._id);
-
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
     if (name) user.name = name;
     if (bio !== undefined) user.bio = bio;
 
     if (req.file) {
       if (!req.file.mimetype.startsWith("image/")) return res.status(400).json({ message: "صورة الملف الشخصي يجب أن تكون صورة" });
-      // نحتفظ بمفتاح الملف القديم قبل ما نستبدله، عشان نمسحه من التخزين
-      // بعد ما الرفع الجديد ينجح — كده مفيش صور يتيمة (orphaned) تتراكم في
-      // التخزين وتكلّف فلوس من غير أي استخدام فعلي
-      const oldPublicId = user.avatarPublicId;
-
-      const result = await uploadMedia(req.file.buffer, {
+      const oldKey = user.avatarPublicId;
+      const uploaded = await uploadMedia(req.file.buffer, {
         folder: "avatars", mimetype: req.file.mimetype, originalname: req.file.originalname,
       });
-      user.avatar = result.secure_url;
-      user.avatarPublicId = result.public_id;
-
-      if (oldPublicId) {
-        try {
-          await deleteMedia(oldPublicId);
-        } catch (cleanupError) {
-          // مينفعش نفشّل تحديث البروفايل بسبب فشل مسح الصورة القديمة —
-          // الأفاتار الجديد اتسجل صح، بس نسجّل الخطأ عشان نراجعه لو تكرر
-          console.error("فشل مسح الأفاتار القديم من التخزين:", cleanupError.message);
-        }
+      // Store the object key only. Signed URLs expire and must never be persisted.
+      user.avatar = "";
+      user.avatarPublicId = uploaded.key;
+      await user.save();
+      if (oldKey && isSupabaseKey(oldKey)) {
+        deleteMedia(oldKey).catch((e) => console.error("Avatar cleanup failed:", e.message));
       }
+      return res.json({
+        id: user._id, name: user.name, email: user.email,
+        avatar: await require("../utils/mediaStorage").getMediaUrl(uploaded.key),
+        bio: user.bio,
+      });
     }
 
     await user.save();
     res.json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar,
-      bio: user.bio,
+      id: user._id, name: user.name, email: user.email,
+      avatar: (await presentUser(user)).avatar, bio: user.bio,
     });
   } catch (error) {
     res.status(error.status || 500).json({ message: error.status === 503 ? error.message : "تعذر تحديث الملف الشخصي" });
@@ -135,9 +113,14 @@ const unfollowUser = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    const profile = await User.findById(req.params.userId).select("name avatar bio followers following createdAt");
+    const profile = await User.findById(req.params.userId).select("name avatar avatarPublicId bio followers following createdAt");
     if (!profile) return res.status(404).json({ message: "المستخدم غير موجود" });
-    res.json({ _id: profile._id, name: profile.name, avatar: profile.avatar, bio: profile.bio, followersCount: profile.followers.length, followingCount: profile.following.length, isFollowing: profile.followers.some((id) => id.toString() === req.user._id.toString()) });
+    const person = await presentUser(profile);
+    res.json({
+      _id: profile._id, name: person.name, avatar: person.avatar, bio: person.bio,
+      followersCount: profile.followers.length, followingCount: profile.following.length,
+      isFollowing: profile.followers.some((id) => id.toString() === req.user._id.toString()),
+    });
   } catch (error) { res.status(500).json({ message: "تعذر جلب الملف الشخصي" }); }
 };
 
