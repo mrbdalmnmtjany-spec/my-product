@@ -3,7 +3,7 @@ const path = require('path');
 
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_BUCKET'];
 const isConfigured = () => required.every((key) => Boolean(process.env[key]));
-const baseUrl = () => process.env.SUPABASE_URL.replace(/\\/$/, '');
+const baseUrl = () => process.env.SUPABASE_URL.replace(/\/$/, '');
 const headers = () => ({
   apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
