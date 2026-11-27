@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Cairo", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: "Amiri", "Cairo", serif;
+}
+
+/* focus ring متسق لكل عنصر تفاعلي — للاستخدام بالكيبورد */
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid #d4af37;
+  outline-offset: 2px;
+}
+
+/* دعم ارتفاع الشاشة الحقيقي على الموبايل (شريط المتصفح بياخد حيز من 100vh) */
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+.min-h-screen-safe {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* على أجهزة فيها notch أو Dynamic Island أو home indicator (iPhone بالذات)،
+   عناصر ملتصقة بحافة الشاشة محتاجة تاخد مسافة أمان عشان مايتغطوش أو يتلمسوش بالغلط */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3538;
+  border-radius: 10px;
+}
+
+/* شريط تقدم مشغل الفويس — بيستخدم متغيرات CSS عشان اللون يتغير حسب فقاعتي أو فقاعة التاني */
+.voice-seek {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.voice-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--voice-fill, #d4af37);
+  border: none;
+  cursor: pointer;
+}
+.voice-seek::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--voice-fill, #d4af37);
+  border: none;
+  cursor: pointer;
+}
+.voice-seek::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.bubble-in {
+  animation: bubbleIn 0.18s ease-out;
+}
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* شريط تقدم الستوري */
+@keyframes grow {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}

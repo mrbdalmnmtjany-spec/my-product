@@ -1,0 +1,14 @@
+const express = require('express');
+const { protect } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
+const controller = require('../controllers/postController');
+const router = express.Router();
+const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+router.use(protect);
+router.get('/feed', asyncRoute(controller.getFeed));
+router.get('/user/:userId', asyncRoute(controller.getUserPosts));
+router.post('/', upload.single('file'), asyncRoute(controller.createPost));
+router.post('/:postId/like', asyncRoute(controller.toggleLike));
+router.post('/:postId/comments', asyncRoute(controller.addComment));
+router.delete('/:postId', asyncRoute(controller.deletePost));
+module.exports = router;

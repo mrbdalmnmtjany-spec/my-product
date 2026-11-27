@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: moaaz-social
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: >-
+      npm ci --prefix frontend --no-audit --no-fund &&
+      npm run build --prefix frontend &&
+      npm ci --prefix backend --omit=dev --no-audit --no-fund
+    startCommand: npm start --prefix backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGO_URI
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
