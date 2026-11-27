@@ -106,6 +106,8 @@ const removeFromGroup = async (req, res) => {
     const updated = await populateChat(Chat.findById(chat._id));
     const safeUpdated = await presentChat(updated);
     const io = req.app.get("io");
+    // Remove every active socket belonging to the removed user from this chat room.
+    await io?.in(`user:${userId}`).socketsLeave(chat._id.toString());
     io?.to(originalMemberIds.map((id) => `user:${id}`)).emit("chat-updated", safeUpdated);
     res.json(safeUpdated);
   } catch (error) {
