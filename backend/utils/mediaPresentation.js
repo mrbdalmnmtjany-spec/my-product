@@ -55,6 +55,25 @@ async function presentStory(value) {
   return story;
 }
 
+async function presentChat(value) {
+  if (!value) return value;
+  const chat = toPlain(value);
+  if (Array.isArray(chat.members)) {
+    chat.members = await Promise.all(chat.members.map((member) =>
+      member && typeof member === "object" ? presentUser(member) : member
+    ));
+  }
+  if (Array.isArray(chat.groupAdmins)) {
+    chat.groupAdmins = await Promise.all(chat.groupAdmins.map((admin) =>
+      admin && typeof admin === "object" ? presentUser(admin) : admin
+    ));
+  }
+  if (chat.lastMessage && typeof chat.lastMessage === "object") {
+    chat.lastMessage = await presentMessage(chat.lastMessage);
+  }
+  return chat;
+}
+
 async function presentMessage(value, depth = 0) {
   if (!value) return value;
   const message = toPlain(value);
@@ -71,4 +90,4 @@ async function presentMessage(value, depth = 0) {
   return message;
 }
 
-module.exports = { isSupabaseKey, presentUser, presentPost, presentStory, presentMessage };
+module.exports = { isSupabaseKey, presentUser, presentPost, presentStory, presentMessage, presentChat };
