@@ -73,6 +73,11 @@ const login = async (req, res) => {
     setTokenCookie(res, token);
     res.json({ token, user: await authUserPayload(user) });
   } catch (error) {
+    console.error("[AUTH_LOGIN_ERROR]", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
     res.status(error.status || 500).json({ message: error.status === 503 ? error.message : "حصل خطأ في السيرفر" });
   }
 };
