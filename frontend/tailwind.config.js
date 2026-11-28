@@ -14,6 +14,7 @@ export default {
           bg: "#F3F6FA",
           panel: "#FFFFFF",
           panel2: "#F7FAFD",
+          text: "#293B52",
           border: "#DCE6F2",
           cream: "#293B52",
           cream2: "#E7EEF7",
