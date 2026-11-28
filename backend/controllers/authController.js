@@ -62,23 +62,60 @@ const verifyEmail = async (req, res) => {
 };
 
 const login = async (req, res) => {
+  const diagnosticId = crypto.randomUUID();
+  let diagnosticStage = "validate_input";
+
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email: email?.toLowerCase() }).select("+password");
-    if (!user || user.authProvider !== "local") return res.status(401).json({ message: "بيانات الدخول غير صحيحة" });
+    const { email, password } = req.body || {};
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+    if (!normalizedEmail || typeof password !== "string" || !password) {
+      return res.status(400).json({ message: "من فضلك أدخل الإيميل وكلمة المرور" });
+    }
+
+    diagnosticStage = "find_user";
+    const user = await User.findOne({ email: normalizedEmail }).select("+password");
+
+    if (!user || user.authProvider !== "local") {
+      return res.status(401).json({ message: "بيانات الدخول غير صحيحة" });
+    }
+
+    diagnosticStage = "compare_password";
     const isMatch = await user.matchPassword(password);
-    if (!isMatch) return res.status(401).json({ message: "بيانات الدخول غير صحيحة" });
-    if (!user.isVerified) return res.status(403).json({ message: "من فضلك فعّل حسابك من الإيميل الأول" });
+    if (!isMatch) {
+      return res.status(401).json({ message: "بيانات الدخول غير صحيحة" });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({ message: "من فضلك فعّل حسابك من الإيميل الأول" });
+    }
+
+    diagnosticStage = "generate_token";
     const token = generateAuthToken(user._id);
+
+    diagnosticStage = "set_cookie";
     setTokenCookie(res, token);
-    res.json({ token, user: await authUserPayload(user) });
+
+    diagnosticStage = "build_user_payload";
+    const payload = await authUserPayload(user);
+
+    res.json({ token, user: payload });
   } catch (error) {
-    console.error("[AUTH_LOGIN_ERROR]", {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
+    // لا تسجل البريد أو كلمة المرور أو نص الخطأ أو stack؛ قد تحتوي على بيانات حساسة.
+    console.error("[AUTH_LOGIN_DIAGNOSTIC]", {
+      diagnosticId,
+      stage: diagnosticStage,
+      errorName: typeof error?.name === "string" ? error.name : "UnknownError",
+      errorCode: typeof error?.code === "string" || typeof error?.code === "number" ? error.code : undefined,
+      errorCodeName: typeof error?.codeName === "string" ? error.codeName : undefined,
+      httpStatus: Number.isInteger(error?.status) ? error.status : 500,
+      timestamp: new Date().toISOString(),
     });
-    res.status(error.status || 500).json({ message: error.status === 503 ? error.message : "حصل خطأ في السيرفر" });
+
+    res.status(500).json({
+      message: "حصل خطأ في السيرفر",
+      diagnosticId,
+    });
   }
 };
 
