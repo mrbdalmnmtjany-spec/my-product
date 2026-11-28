@@ -134,7 +134,7 @@ export default function AuthPage() {
                   value={form.name}
                   onChange={handleChange}
                   required
-                  className="w-full mt-1 bg-room-cream text-room-bg rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-room-gold"
+                  className="w-full mt-1 bg-room-panel2 border border-room-border text-room-text rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-room-gold"
                 />
               </div>
             )}
@@ -146,7 +146,7 @@ export default function AuthPage() {
                 value={form.email}
                 onChange={handleChange}
                 required
-                className="w-full mt-1 bg-room-cream text-room-bg rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-room-gold"
+                className="w-full mt-1 bg-room-panel2 border border-room-border text-room-text rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-room-gold"
               />
             </div>
             <div>
@@ -158,7 +158,7 @@ export default function AuthPage() {
                 onChange={handleChange}
                 required
                 minLength={6}
-                className="w-full mt-1 bg-room-cream text-room-bg rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-room-gold"
+                className="w-full mt-1 bg-room-panel2 border border-room-border text-room-text rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-room-gold"
               />
             </div>
 
